@@ -85,10 +85,11 @@ def vectorize_PrimeRelu(x):
 
     """
     # Write the vecotrized version here
-    return np.where(x<0,0,1)     
+    return np.where(x<0,0,1)   
 
 def get_slice(start_point, l):
     return slice(start_point, start_point+l)
+
 def slice_fixed_point(x, l, start_point):
     """
     x is a 3-dimensional int numpy array, (n, ). First dimension represent the number of instances in the array.
@@ -123,7 +124,7 @@ def slice_random_point(x, l):
     Return a 3-dimensional int numpy array of shape (n, l, -1)
 
     """
-    return np.array([x[item][get_slice(np.random.randint(0,x[item].shape[0]-l+1), l)] for item in np.arange(x.shape[0])])
+    return np.array([x[item][get_slice(np.random.randint(0,x[item].shape[0]-l), l)] for item in np.arange(x.shape[0])])
 
 
 def pad_pattern_end(x):
@@ -135,13 +136,11 @@ def pad_pattern_end(x):
     Return a 3-dimensional int numpy array.
 
     """
-    max_shape=np.max([x[item].shape[0] for item in np.arange(x.shape[0])])
-    return np.array([np.pad(x[item],((0,max_shape-x[item].shape[0]),(0,0)),'symmetric') for item in np.arange(x.shape[0])])
+    pass
     
 
 
 def pad_constant_central(x, c_):
-    max_shape=np.max([x[item].shape[0] for item in np.arange(x.shape[0])])
     """
     x is a 3-dimensional int numpy array, (n, ). First dimension represent the number of instances in the array.
     Second dimension is variable, depending on the length of a given instance. Third dimension is fixed
@@ -150,10 +149,7 @@ def pad_constant_central(x, c_):
     Return a 3-dimensional int numpy array.
 
     """
-    return np.array([np.pad(x[item],(((max_shape-x[item].shape[0])//2,(max_shape-x[item].shape[0])//2+
-                                                            (max_shape-x[item].shape[0])%2),
-                          (0,0)),'constant', constant_values=(c_, c_)) 
-          for item in np.arange(x.shape[0])])
+    pass
 
 
 
@@ -163,7 +159,7 @@ def numpy2tensor(x):
 
     Return a pytorch Tensor of the same shape containing the same data.
     """
-    return torch.from_numpy(x)
+    pass
 
 def tensor2numpy(x):
     """
@@ -171,7 +167,7 @@ def tensor2numpy(x):
 
     Return a numpy nd-array of the same shape containing the same data.
     """
-    return x.numpy()
+    pass
 
 def tensor_sumproducts(x,y):
     """
@@ -180,7 +176,7 @@ def tensor_sumproducts(x,y):
 
     Return the sum of the element-wise product of the two tensors.
     """
-    return torch.sum(torch.mul(x,y))
+    pass
 
 def tensor_ReLU(x):
     """
@@ -190,8 +186,7 @@ def tensor_ReLU(x):
 
     Return a pytorch Tensor of the same shape as x containing RELU(x)
     """
-    zeros=torch.zeros_like(x)
-    return torch.where(x < 0, zeros, x)        
+    pass        
 
 def tensor_ReLU_prime(x):
     """
@@ -201,6 +196,4 @@ def tensor_ReLU_prime(x):
 
     Return a pytorch Tensor of the same shape as x containing RELU_PRIME(x)
     """
-    zeros=torch.zeros_like(x)
-    ones=torch.ones_like(x)
-    return torch.where(x < 0, zeros, ones) 
+    pass
