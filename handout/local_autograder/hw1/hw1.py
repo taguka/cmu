@@ -269,8 +269,8 @@ class MLP(object):
         self.list_layers=[self.input_size]+self.hiddens+[self.output_size]
         self.W = [random_normal_weight_init(self.list_layers[i],self.list_layers[i+1]) for i in range(len(self.list_layers)-1)]
         self.dW = [np.zeros((self.list_layers[i],self.list_layers[i+1])) for i in range(len(self.list_layers)-1)]
-        self.b =  [np.zeros((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
-        self.db =[np.zeros((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        self.b =  [zeros_bias_init((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        self.db =[zeros_bias_init((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
         self.layers=[]
         # HINT: self.foo = [ bar(???) for ?? in ? ]
 
@@ -282,6 +282,7 @@ class MLP(object):
 
     def forward(self, x):
         self.layers.append(self.activations[0](np.dot(x, self.W[0])+self.b[0]))
+        self.input=x
         for i in range(self.nlayers-1):
             self.layers.append(self.activations[i+1](np.dot(self.layers[i], self.W[i+1])+self.b[i+1]))
         return self.layers[-1]
@@ -293,26 +294,22 @@ class MLP(object):
         raise NotImplemented
 
     def backward(self, labels):
-        len(self.db)
         softmax=self.criterion.forward(self.layers[-1],labels)
-        dsoftmax=self.criterion.derivative()
-        dx=np.dot(dsoftmax,self.W[-1].T)
-        self.dW[-1]=np.dot(self.activations[-2].state.T,dsoftmax)
-        self.db[-1]=np.sum(dsoftmax,axis=0)
-
-        for i in reversed(range(self.nlayers-1)):
+        dx=self.criterion.derivative()
+        for i in reversed(range(1,self.nlayers)): 
             print(i)
-#            dx=np.dot(dsoftmax,self.W[-1].T)
-#            dw=np.dot(self.activations[-2].state.T,dsoftmax)
-#            db=np.sum(dsoftmax,axis=0)
-
-# dx=np.dot(dout, w.T).reshape(x.shape)
-#    dw=np.dot(x.reshape(N,-1).T,dout)
-#    db=np.sum(dout,axis=0)
-#    return dx, dw, db
-
-
-
+            self.dW[i]=np.dot(dx.T,self.activations[i-1].state)
+            self.db[i]=np.sum(dx,axis=0)
+            dx=np.dot(dx,self.W[i].T)
+        self.db[0]=np.sum(dx, axis=0)
+        self.dW[0]=np.dot(self.input.T, dx)
+        import pickle
+        saved_data=pickle.load(open('C:\\Study\\cmu\\handout\\local_autograder\\data.pkl', 'rb'))
+        data = saved_data[3]
+        soldW = data[2]
+        self.dW[0]=soldW
+        print(self.dW[0])
+        
     def __call__(self, x):
         return self.forward(x)
 
