@@ -160,25 +160,22 @@ class SoftmaxCrossEntropy(Criterion):
         super(SoftmaxCrossEntropy, self).__init__()
         self.sm = None
         self.eps=1e-8
-
+        
     def forward(self, x, y):
-
         self.logits = x
         self.labels = y.astype(int)
         N=self.logits.shape[0]
-
         exps = np.exp(self.logits-self.eps)
-        softmax=exps / np.exp(np.log(np.sum(exps))+self.eps)
-        log_probs=np.log(softmax)
-        print(log_probs.shape)
-        loss = -log_probs[np.arange(N), np.argmax(self.labels)]
+        self.sm=exps / np.exp(np.log(np.sum(exps,axis=1).reshape(-1,1))+self.eps)
+        log_probs=np.log(self.sm)
+        loss = -log_probs[np.arange(N), np.argmax(self.labels,axis=1)]
         return loss
 
     def derivative(self):
-
-        # self.sm might be useful here...
-
-        raise NotImplemented
+        N=self.logits.shape[0]
+        dx = self.sm
+        dx[np.arange(N), np.argmax(self.labels,axis=1)]-=1
+        return  dx
 
 
 class BatchNorm(object):
@@ -217,10 +214,10 @@ class BatchNorm(object):
 
         self.x = x
 
-        # self.mean = # ???
-        # self.var = # ???
-        # self.norm = # ???
-        # self.out = # ???
+        self.mean = np.mean(self.x)
+        self.var = np.mean((self.x-np.mean(self.x))**2)
+        self.norm = (self.x-self.mean)/np.sqrt(self.var+self.eps)
+        self.out = self.norm*self.alpha+self.gamma
 
         # update running batch statistics
         # self.running_mean = # ???
@@ -228,7 +225,7 @@ class BatchNorm(object):
 
         # ...
 
-        raise NotImplemented
+        return self.out
 
     def backward(self, delta):
 
@@ -237,11 +234,11 @@ class BatchNorm(object):
 
 # These are both easy one-liners, don't over-think them
 def random_normal_weight_init(d0, d1):
-    raise NotImplemented
+    return np.random.normal(size=(d0,d1))
 
 
 def zeros_bias_init(d):
-    raise NotImplemented
+    return np.zeros((d))
 
 
 class MLP(object):
@@ -259,6 +256,7 @@ class MLP(object):
         self.nlayers = len(hiddens) + 1
         self.input_size = input_size
         self.output_size = output_size
+        self.hiddens=hiddens
         self.activations = activations
         self.criterion = criterion
         self.lr = lr
@@ -268,10 +266,12 @@ class MLP(object):
         # Don't change the name of the following class attributes,
         # the autograder will check against these attributes. But you will need to change
         # the values in order to initialize them correctly
-        self.W = None
-        self.dW = None
-        self.b = None
-        self.db = None
+        self.list_layers=[self.input_size]+self.hiddens+[self.output_size]
+        self.W = [random_normal_weight_init(self.list_layers[i],self.list_layers[i+1]) for i in range(len(self.list_layers)-1)]
+        self.dW = [np.zeros((self.list_layers[i],self.list_layers[i+1])) for i in range(len(self.list_layers)-1)]
+        self.b =  [np.zeros((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        self.db =[np.zeros((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        self.layers=[]
         # HINT: self.foo = [ bar(???) for ?? in ? ]
 
         # if batch norm, add batch norm parameters
@@ -281,7 +281,10 @@ class MLP(object):
         # Feel free to add any other attributes useful to your implementation (input, output, ...)
 
     def forward(self, x):
-        raise NotImplemented
+        self.layers.append(self.activations[0](np.dot(x, self.W[0])+self.b[0]))
+        for i in range(self.nlayers-1):
+            self.layers.append(self.activations[i+1](np.dot(self.layers[i], self.W[i+1])+self.b[i+1]))
+        return self.layers[-1]
 
     def zero_grads(self):
         raise NotImplemented
@@ -290,7 +293,25 @@ class MLP(object):
         raise NotImplemented
 
     def backward(self, labels):
-        raise NotImplemented
+        len(self.db)
+        softmax=self.criterion.forward(self.layers[-1],labels)
+        dsoftmax=self.criterion.derivative()
+        dx=np.dot(dsoftmax,self.W[-1].T)
+        self.dW[-1]=np.dot(self.activations[-2].state.T,dsoftmax)
+        self.db[-1]=np.sum(dsoftmax,axis=0)
+
+        for i in reversed(range(self.nlayers-1)):
+            print(i)
+#            dx=np.dot(dsoftmax,self.W[-1].T)
+#            dw=np.dot(self.activations[-2].state.T,dsoftmax)
+#            db=np.sum(dsoftmax,axis=0)
+
+# dx=np.dot(dout, w.T).reshape(x.shape)
+#    dw=np.dot(x.reshape(N,-1).T,dout)
+#    db=np.sum(dout,axis=0)
+#    return dx, dw, db
+
+
 
     def __call__(self, x):
         return self.forward(x)
@@ -300,8 +321,6 @@ class MLP(object):
 
     def eval(self):
         self.train_mode = False
-
-
 def get_training_stats(mlp, dset, nepochs, batch_size):
 
     train, val, test = dset
