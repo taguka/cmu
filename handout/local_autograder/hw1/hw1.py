@@ -113,7 +113,7 @@ class ReLU(Activation):
         super(ReLU, self).__init__()
 
     def forward(self, x):
-      self.state=x
+      self.state=np.maximum(0,x)
       return np.maximum(0,x)
 
     def derivative(self):
@@ -168,8 +168,8 @@ class SoftmaxCrossEntropy(Criterion):
         exps = np.exp(self.logits-self.eps)
         self.sm=exps / np.exp(np.log(np.sum(exps,axis=1).reshape(-1,1))+self.eps)
         log_probs=np.log(self.sm)
-        loss = -log_probs[np.arange(N), np.argmax(self.labels,axis=1)]
-        return loss
+        ce = -log_probs[np.arange(N), np.argmax(self.labels,axis=1)]
+        return ce
 
     def derivative(self):
         N=self.logits.shape[0]
@@ -267,11 +267,11 @@ class MLP(object):
         # the autograder will check against these attributes. But you will need to change
         # the values in order to initialize them correctly
         self.list_layers=[self.input_size]+self.hiddens+[self.output_size]
+        self.items=[]
         self.W = [random_normal_weight_init(self.list_layers[i],self.list_layers[i+1]) for i in range(len(self.list_layers)-1)]
         self.dW = [np.zeros((self.list_layers[i],self.list_layers[i+1])) for i in range(len(self.list_layers)-1)]
         self.b =  [zeros_bias_init((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
         self.db =[zeros_bias_init((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
-        self.layers=[]
         # HINT: self.foo = [ bar(???) for ?? in ? ]
 
         # if batch norm, add batch norm parameters
@@ -281,11 +281,13 @@ class MLP(object):
         # Feel free to add any other attributes useful to your implementation (input, output, ...)
 
     def forward(self, x):
-        self.layers.append(self.activations[0](np.dot(x, self.W[0])+self.b[0]))
-        self.input=x
-        for i in range(self.nlayers-1):
-            self.layers.append(self.activations[i+1](np.dot(self.layers[i], self.W[i+1])+self.b[i+1]))
-        return self.layers[-1]
+        a=x    
+        for i in range(self.nlayers):
+            self.items.append(a)
+            item=np.dot(a,self.W[i])+self.b[i]
+            a=self.activations[i](item)
+        self.output=a
+        return self.output
 
     def zero_grads(self):
         raise NotImplemented
@@ -294,22 +296,20 @@ class MLP(object):
         raise NotImplemented
 
     def backward(self, labels):
-        softmax=self.criterion.forward(self.layers[-1],labels)
-        dx=self.criterion.derivative()
-        for i in reversed(range(1,self.nlayers)): 
-            print(i)
-            self.dW[i]=np.dot(dx.T,self.activations[i-1].state)
-            self.db[i]=np.sum(dx,axis=0)
-            dx=np.dot(dx,self.W[i].T)
-        self.db[0]=np.sum(dx, axis=0)
-        self.dW[0]=np.dot(self.input.T, dx)
-        import pickle
-        saved_data=pickle.load(open('C:\\Study\\cmu\\handout\\local_autograder\\data.pkl', 'rb'))
-        data = saved_data[3]
-        soldW = data[2]
-        self.dW[0]=soldW
-        print(self.dW[0])
-        
+        self.criterion(self.output,labels)
+        dout=self.criterion.derivative()
+        N=dout.shape[0]
+        for i in reversed(range(1,self.nlayers)):  
+            dout=np.multiply(dout, self.activations[i].derivative())             
+            self.dW[i]=np.dot(self.items.pop().T,dout)/N
+            self.db[i]=np.sum(dout,axis=0)/N
+            dout=np.dot(dout,self.W[i].T)
+        dout=np.multiply(dout, self.activations[0].derivative())
+        self.dW[0]=np.dot(self.items.pop().T,dout)/N
+        self.db[0]=np.sum(dout,axis=0)/N
+        print('len',len(self.dW))
+        return
+
     def __call__(self, x):
         return self.forward(x)
 
