@@ -235,8 +235,8 @@ class BatchNorm(object):
             print('step_9',step_9.shape)
             self.out=step_9
             self.cache=(step_8, step_7, step_6, step_5, step_4, step_3, step_2, step_1)
-            self.running_mean = 0.9 * self.running_mean + (1 - 0.9) * self.mean
-            self.running_var = 0.9 * self.running_var + (1 - 0.9) * self.var
+            self.running_mean = self.alpha * self.running_mean + (1 - self.alpha) * self.mean
+            self.running_var = self.alpha * self.running_var + (1 - self.alpha) * self.var
         return self.out
 
     def backward(self, delta):
@@ -333,9 +333,9 @@ class MLP(object):
         dout=self.criterion.derivative()
         N=dout.shape[0]
         for i in reversed(range(self.nlayers)):
+            dout=np.multiply(dout, self.activations[i].derivative())   
             if self.bn and i<self.num_bn_layers: 
                 dout=self.bn_layers[i].backward(dout)
-            dout=np.multiply(dout, self.activations[i].derivative())             
             self.dW[i]=np.dot(self.items.pop().T,dout)/N
             self.db[i]=np.sum(dout,axis=0)/N
             dout=np.dot(dout,self.W[i].T)
