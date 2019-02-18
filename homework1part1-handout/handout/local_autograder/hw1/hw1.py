@@ -205,58 +205,32 @@ class BatchNorm(object):
         return self.forward(x, eval)
 
     def forward(self, x, eval=False):
-
         if eval:
-            x_norm=(self.x-self.running_mean)/np.sqrt(self.running_var+self.eps)
+            x_norm=(x-self.running_mean)/np.sqrt(self.running_var+self.eps)
             self.out=self.gamma*x_norm+self.beta
+            print(self.out)
         else:
             self.x = x
-            self.mean = np.mean(self.x)
-            self.var = np.mean((self.x-np.mean(self.x))**2)
-            self.norm = (self.x-self.mean)/np.sqrt(self.var+self.eps)
-            self.out = self.norm*self.alpha+self.gamma
-            step_1=np.mean(self.x)
-            print('step_1',step_1.shape)
-            step_2=self.x-step_1
-            print('step_2',step_2.shape)
-            step_3=np.square(step_2)
-            print('step_3',step_3.shape)
-            step_4=np.mean(step_3)
-            print('step_4',step_4.shape)
-            step_5=np.sqrt(step_4+self.eps)
-            print('step_5',step_5.shape)
-            step_6=1/step_5
-            print('step_6',step_6.shape)
-            step_7=step_2*step_6
-            print('step_7',step_7.shape)
-            step_8=step_7*self.gamma
-            print('step_8',step_8.shape)
-            step_9=step_8+self.beta
-            print('step_9',step_9.shape)
-            self.out=step_9
-            self.cache=(step_8, step_7, step_6, step_5, step_4, step_3, step_2, step_1)
+            self.mean=np.mean(x,axis=0)
+            self.var = np.var(x,axis=0)
             self.running_mean = self.alpha * self.running_mean + (1 - self.alpha) * self.mean
             self.running_var = self.alpha * self.running_var + (1 - self.alpha) * self.var
+            self.norm=(self.x-self.mean)/np.sqrt(self.var+self.eps)
+            self.out = self.norm*self.gamma+self.beta
         return self.out
 
     def backward(self, delta):
-        step_8, step_7, step_6, step_5, step_4, step_3, step_2, step_1 = self.cache
-        self.dbeta=np.sum(delta,axis=0)
-        dstep_8=delta
-        print('dstep_8',dstep_8.shape)
-        self.dgamma=np.sum(dstep_8*step_7)
-        dstep_7=dstep_8*self.gamma
-        dstep_2_1=dstep_7*step_6
-        dstep_6=np.sum(dstep_7*step_2)
-        dstep_5=dstep_6*(-1/np.square(step_5))
-        dstep_4=dstep_5*(1/(2*np.sqrt(step_4+self.eps)))
-        dstep_3=(dstep_4)
-        dstep_2_2=dstep_3*2*step_2
-        dstep_1=np.sum((dstep_2_1+dstep_2_2), axis=0)*(-1)
-        dx_1=(dstep_2_1+dstep_2_2)*1
-        dx_2=dstep_1
-        dx=dx_1+dx_2
+        X_mu=self.x-self.mean
+        N=X_mu.shape[0]
+        std_inv = 1. / np.sqrt(self.var + self.eps)
+        dnorm=delta*self.gamma
+        dvar = np.sum(dnorm * X_mu, axis=0) * -.5 * std_inv**3
+        dmu = np.sum(dnorm * -std_inv, axis=0) + dvar * np.mean(-2. * X_mu, axis=0)
+        dx = (dnorm * std_inv) + (dvar * 2 * X_mu /N) + (dmu / N)
+        self.dgamma = np.sum(delta * self.norm, axis=0)
+        self.dbeta = np.sum(delta, axis=0)
         return dx
+
 
 # These are both easy one-liners, don't over-think them
 def random_normal_weight_init(d0, d1):
@@ -298,6 +272,11 @@ class MLP(object):
         self.dW = [np.zeros((self.list_layers[i],self.list_layers[i+1])) for i in range(len(self.list_layers)-1)]
         self.b =  [bias_init_fn((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
         self.db = [bias_init_fn((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        
+        
+        self.d_vW = [np.zeros((self.list_layers[i],self.list_layers[i+1])) for i in range(len(self.list_layers)-1)]
+        self.d_vb =  [bias_init_fn((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        
         # HINT: self.foo = [ bar(???) for ?? in ? ]
 
         # if batch norm, add batch norm parameters
@@ -313,7 +292,9 @@ class MLP(object):
             self.items.append(a)
             item=np.dot(a,self.W[i])+self.b[i]
             if self.bn and i<self.num_bn_layers: 
-                item=self.bn_layers[i](item)
+                item=self.bn_layers[i].forward(item, 
+                                   not(self.train_mode)
+                                   )
             a=self.activations[i](item)
         self.output=a
         return self.output
@@ -324,8 +305,20 @@ class MLP(object):
         return
 
     def step(self):
-        self.W=[self.W[i]-self.lr*self.dW[i] for i in range(len(self.W))]
-        self.b=[self.b[i]-self.lr*self.db[i] for i in range(len(self.b))]
+        if self.momentum==0:
+            self.W=[self.W[i]-self.lr*self.dW[i] for i in range(len(self.W))]
+            self.b=[self.b[i]-self.lr*self.db[i] for i in range(len(self.b))]
+        else:
+            self.d_vW=[self.momentum*self.d_vW[i] - self.lr*self.dW[i] for i in range(len(self.W))]
+            self.W=[self.W[i]+self.d_vW[i] for i in range(len(self.W))]
+            
+            self.d_vb=[self.momentum*self.d_vb[i] - self.lr*self.db[i] for i in range(len(self.b))]
+            self.b=[self.b[i]+self.d_vb[i] for i in range(len(self.b))]
+        if self.bn:
+            for i in range(len(self.bn_layers)):
+                self.bn_layers[i].gamma= self.bn_layers[i].gamma-self.bn_layers[i].dgamma
+                self.bn_layers[i].beta= self.bn_layers[i].beta-self.bn_layers[i].dbeta
+                
         return
 
     def backward(self, labels):
@@ -349,6 +342,7 @@ class MLP(object):
 
     def eval(self):
         self.train_mode = False
+
 def get_training_stats(mlp, dset, nepochs, batch_size):
 
     train, val, test = dset

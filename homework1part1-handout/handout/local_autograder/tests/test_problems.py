@@ -335,11 +335,11 @@ def test_batch_norm_train():
     mlp.forward(x)
     mlp.backward(y)
 
- #   for i, (pred, gt) in enumerate(zip(mlp.dW, soldW)):
- #       closeness_test(pred, gt, "mlp.dW[%d]" % i)
+    for i, (pred, gt) in enumerate(zip(mlp.dW, soldW)):
+        closeness_test(pred, gt, "mlp.dW[%d]" % i)
 
- #   for i, (pred, gt) in enumerate(zip(mlp.db, soldb)):
- #       closeness_test(pred, gt, "mlp.db[%d]" % i)
+    for i, (pred, gt) in enumerate(zip(mlp.db, soldb)):
+        closeness_test(pred, gt, "mlp.db[%d]" % i)
 
     closeness_test(mlp.bn_layers[0].dbeta, soldbeta, "mlp.bn_layers[0].dbeta")
     closeness_test(mlp.bn_layers[0].dgamma, soldgamma, "mlp.bn_layers[0].dgamma")

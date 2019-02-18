@@ -1,3 +1,4 @@
 {
+  "tests/test_problems.py::test_batch_norm_inference": true,
   "tests/test_problems.py::test_close": true
 }
