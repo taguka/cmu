@@ -376,7 +376,6 @@ def test_batch_norm_inference():
         ground = solground[b//batch_size]
         closeness_test(student, ground, "mlp.forward(x)")
 
-
 def test_momentum():
     data = saved_data[21]
     assert len(data) == 8

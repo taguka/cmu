@@ -208,7 +208,6 @@ class BatchNorm(object):
         if eval:
             x_norm=(x-self.running_mean)/np.sqrt(self.running_var+self.eps)
             self.out=self.gamma*x_norm+self.beta
-            print(self.out)
         else:
             self.x = x
             self.mean=np.mean(x,axis=0)
@@ -281,7 +280,7 @@ class MLP(object):
 
         # if batch norm, add batch norm parameters
         if self.bn:
-            self.bn_layers = [BatchNorm(1) for i in range(self.num_bn_layers)]
+            self.bn_layers = [BatchNorm(self.list_layers[i+1]) for i in range(self.num_bn_layers)]
 
 
         # Feel free to add any other attributes useful to your implementation (input, output, ...)
@@ -302,6 +301,10 @@ class MLP(object):
     def zero_grads(self):
         self.dW = [np.zeros((self.list_layers[i],self.list_layers[i+1])) for i in range(len(self.list_layers)-1)]
         self.db = [zeros_bias_init((self.list_layers[i+1])) for  i in range(len(self.list_layers)-1)]
+        if self.bn:
+            for i in range(len(self.bn_layers)):
+                self.bn_layers[i].dgamma=   np.zeros((1, self.list_layers[i]))
+                self.bn_layers[i].dbeta=  np.zeros((1, self.list_layers[i]))
         return
 
     def step(self):
@@ -316,8 +319,8 @@ class MLP(object):
             self.b=[self.b[i]+self.d_vb[i] for i in range(len(self.b))]
         if self.bn:
             for i in range(len(self.bn_layers)):
-                self.bn_layers[i].gamma= self.bn_layers[i].gamma-self.bn_layers[i].dgamma
-                self.bn_layers[i].beta= self.bn_layers[i].beta-self.bn_layers[i].dbeta
+                self.bn_layers[i].gamma= self.bn_layers[i].gamma-self.lr*self.bn_layers[i].dgamma
+                self.bn_layers[i].beta= self.bn_layers[i].beta-self.lr*self.bn_layers[i].dbeta
                 
         return
 
